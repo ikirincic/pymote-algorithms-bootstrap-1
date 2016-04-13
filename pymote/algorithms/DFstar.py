@@ -3,9 +3,7 @@ from pymote.message import Message
 
 
 class DFT(NodeAlgorithm):
-    # algorithm input
-    required_params = {'informationKey', }
-    # values that are exposed to other algorithms
+    required_params = ()
     default_params = {'neighborsKey': 'Neighbors'}
 
     def initializer(self):
@@ -14,31 +12,32 @@ class DFT(NodeAlgorithm):
             node.status = 'IDLE'
             if self.informationKey in node.memory:
                 ini_node = node
-        # if multiple initiators are specified only the last one is initialized
         ini_node.status = 'INITIATOR'
-        self.network.outbox.insert(0, Message(header=NodeAlgorithm.INI,
-destination=ini_node))
+        self.network.outbox.insert(0, Message(header=NodeAlgorithm.INI, destination=ini_node))
 
     def initiator(self, node, message):
         node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
         if node.memory['unvisitedNodes']:
-            next_node = node.memory['unvisitedNodes'][0]
-            node.send(Message(destination=next_node, header='T', data=message.data))
-       ##prvome ??alji T
+            node.memory['next_node'] = node.memory['unvisitedNodes'].pop()
+            node.send(Message(destination=node.memory['next_node'], header='T', data=message.data))
+	    next_node= node.memory['next_node']
+       
             node.memory['unvisitedNodes'].remove(next_node)
             for other_node in node.memory['unvisitedNodes']:                        
-       ##svima drugima Visited
-                 node.send(Message(destination=other_node, header='Visited',
-data=message.data))
+      
+                 node.send(Message(destination=other_node, header='Visited', data=message.data))
             node.status = 'VISITED'
+	else:
+	    node.status = 'DONE'
         
 
     def idle(self, node, message):
         if message.header == 'T':
-            node.memory['entry'] = message.source
-            node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
             self.firstVisit(node, message)
         elif message.header == 'Visited':
+	    node.memory['entry'] = message.source
+            node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
+            node.memory['unvisitedNodes'].remove(message.source)
             node.status = 'AVAILABLE'
         
 
@@ -61,7 +60,7 @@ data=message.data))
             self.firstVisit(node, message) 
          elif message.header == 'Visited':
             node.memory['unvisitedNodes'].remove(message.source)
-         
+        
     
     def firstVisit(self, node, message):
         
@@ -69,30 +68,29 @@ data=message.data))
         node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
         node.memory['unvisitedNodes'].remove(message.source)
         if node.memory['unvisitedNodes']:
-            next_node = node.memory['unvisitedNodes'][0]
-            node.send(Message(destination=next_node, header='T', data=message.data))
-            
+            node.memory['next_node'] = node.memory['unvisitedNodes'].pop()
+            node.send(Message(destination=node.memory['next_node'], header='T', data=message.data))
+            next_node = node.memory['next_node']
             node.memory['unvisitedNodes'].remove(next_node)
             for other_node in node.memory['unvisitedNodes']:
-                 node.send(Message(destination=other_node, header='Visited',
-data=message.data))
+                 node.send(Message(destination=other_node, header='Visited', data=message.data))
             node.status = 'VISITED'
         else:
             if 'entry' in node.memory:
-                node.send(Message(destination=node.memory['entry'], header='Return',
-data=message.data))
+                node.send(Message(destination=node.memory['entry'], header='Return', data=message.data))
             node.status = 'DONE'
         
 
     def visit(self, node, message):
         if node.memory['unvisitedNodes']:
-            next_node = node.memory['unvisitedNodes'][0]
-            node.send(Message(destination=next_node, header='T', data=message.data))
+            node.memory['next_node'] = node.memory['unvisitedNodes'].pop()
+            node.send(Message(destination=node.memory['next_node'], header='T', data=message.data))
+	    next_node = node.memory['next_node']
+            node.memory['unvisitedNodes'].remove(next_node)
             node.status = 'VISITED'
         else:
             if 'entry' in node.memory:
-                node.send(Message(destination=node.memory['entry'], header='Return',
-data=message.data))
+                node.send(Message(destination=node.memory['entry'], header='Return', data=message.data))
             node.status = 'DONE'
 
     STATUS = {
