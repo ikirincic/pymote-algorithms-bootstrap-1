@@ -18,8 +18,10 @@ class Saturation(NodeAlgorithm):
 
     def available(self, node, message):
 		nodeNeighbors = list(node.memory[self.neighborsKey])
+		node.memory['neighbors'] = list(node.memory[self.neighborsKey])
 		node.memory['counter'] = len(nodeNeighbors)
 		node.memory['total'] = node.memory['value']
+		node.memory['parent'] = 'ini'
 		if message.header == NodeAlgorithm.INI:
 			for i in range(len(nodeNeighbors)):
 				node.send(Message(destination=nodeNeighbors[i], header='Activate', data={'v': node.memory['value']}))
@@ -40,12 +42,12 @@ class Saturation(NodeAlgorithm):
 
     def active(self, node, message):
 		tmp_value = message.data['v']
-		if node.memory['parent']:
+		if node.memory['parent'] != 'ini':
 			if message.header == 'M':
 				node.memory['counter'] = node.memory['counter'] - 1
 				node.memory['total'] += tmp_value 
-				if node.memory['counter'] == 0:
-					node.memory['average'] = node.memory['total'] / len(node.memory['neighbors'])
+				if node.memory['counter'] == 1:
+					node.memory['average'] = node.memory['total'] / ( len(node.memory['neighbors']) + 1 )
 					node.send(Message(destination=node.memory['parent'], header='M', data={'v': node.memory['average']}))
 					node.status = 'PROCESSING'
 
@@ -55,9 +57,10 @@ class Saturation(NodeAlgorithm):
 				node.memory['counter'] = node.memory['counter'] - 1
 				node.memory['total'] += tmp_value 
 				if node.memory['counter'] == 0:
-					node.memory['average'] = node.memory['total'] / len(node.memory['neighbors'])
+					node.memory['average'] = node.memory['total'] / ( len(node.memory['neighbors']) + 1 )
+					nodeNeighbors = list(node.memory[self.neighborsKey])
 					for i in range(len(nodeNeighbors)):
-					node.send(Message(destination=nodeNeighbors[i], header='M', data={'v': node.memory['average']}))
+						node.send(Message(destination=nodeNeighbors[i], header='M', data={'v': node.memory['average']}))
 					node.status = 'DONE'
 
 
@@ -65,6 +68,7 @@ class Saturation(NodeAlgorithm):
     def processing(self, node, message):
 		if message.header == 'M':
 			nodeNeighbors = list(node.memory[self.neighborsKey])
+			nodeNeighbors.remove(message.source)
 			node.memory['average'] = message.data['v']
 			for i in range(len(nodeNeighbors)):
 				node.send(Message(destination=nodeNeighbors[i], header='M', data={'v': node.memory['average']}))
